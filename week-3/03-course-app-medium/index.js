@@ -1,54 +1,82 @@
-const express = require('express');
+const express = require("express");
+const fs = require("fs");
+const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken");
+const port = 3000;
+
 const app = express();
+app.use(bodyParser.json());
 
-app.use(express.json());
+ADMINS = [];
+USERS = [];
+COURSES = [];
+let IdCounter = 0;
+const secret = "jey$iva";
 
-let ADMINS = [];
-let USERS = [];
-let COURSES = [];
+const authenticate = (req, res, next) => {
+  let isAuth = req.headers.authorization;
+  if (isAuth) {
+    const token = isAuth.split(" ")[1];
+    jwt.verify(token, secret, (err, data) => {
+      if (err) {
+        return res.json({ error: "Failed authentication" });
+      }
+      req.username = data;
+      next();
+    });
+  } else {
+    res.send("error");
+  }
+};
 
-// Admin routes
-app.post('/admin/signup', (req, res) => {
-  // logic to sign up admin
+app.post("/admin/signup", (req, res) => {
+  const admin = req.body;
+
+  const isAdmin = ADMINS.find((a) => a.username === admin.username);
+
+  if (isAdmin) {
+    return res.status(400).json({ error: "Admin already exists" });
+  }
+  ADMINS.push(admin);
+  const token = jwt.sign(admin.username, secret);
+
+  res.send({ message: "Admin created successfully", token: token });
 });
 
-app.post('/admin/login', (req, res) => {
-  // logic to log in admin
+app.listen(port, () => {
+  console.log(`Listening on the port ${port}`);
 });
 
-app.post('/admin/courses', (req, res) => {
-  // logic to create a course
+app.post("/admin/login", (req, res) => {
+  const admin = req.headers;
+
+  const isAdmin = ADMINS.find(
+    (a) => a.username === admin.username && a.password === admin.password
+  );
+
+  const token = jwt.sign(admin.username, secret);
+
+  if (isAdmin) {
+    res.json({ message: "Logged in successfully", token: token });
+  } else {
+    res.json({ error: "error" });
+  }
 });
 
-app.put('/admin/courses/:courseId', (req, res) => {
-  // logic to edit a course
+app.post("/admin/courses", authenticate, (req, res) => {
+  let course = req.body;
+  course.id = ++IdCounter;
+  COURSES.push(course);
+  res.json({ message: "Course created successfully", courseId: IdCounter });
 });
 
-app.get('/admin/courses', (req, res) => {
-  // logic to get all courses
+app.put("/admin/courses/:courseId", authenticate, (req, res) => {
+  const updateId = parseInt(req.params.courseId);
+  const cou = COURSES.find((c) => c.id === updateId);
+  Object.assign(cou, req.body);
+  res.json({ message: "Course updated successfully" });
 });
 
-// User routes
-app.post('/users/signup', (req, res) => {
-  // logic to sign up user
-});
-
-app.post('/users/login', (req, res) => {
-  // logic to log in user
-});
-
-app.get('/users/courses', (req, res) => {
-  // logic to list all courses
-});
-
-app.post('/users/courses/:courseId', (req, res) => {
-  // logic to purchase a course
-});
-
-app.get('/users/purchasedCourses', (req, res) => {
-  // logic to view purchased courses
-});
-
-app.listen(3000, () => {
-  console.log('Server is listening on port 3000');
+app.get("/admin/courses", authenticate, (req, res) => {
+  res.json({ courses: COURSES });
 });
